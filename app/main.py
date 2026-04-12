@@ -5,13 +5,24 @@ from jose import jwt
 from datetime import datetime, timedelta
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-
+from fastapi.middleware.cors import CORSMiddleware
 
 SECRET_KEY = "mi_clave_secreta"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",  # desarrollo
+        # ⚠️ si tenéis frontend en render (opcional)
+        "https://orbitspace-frontend.onrender.com",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 security = HTTPBearer()
 
 
@@ -61,11 +72,31 @@ class ChatRequest(BaseModel):
     question: str
 
 
+OPENROUTER_API_KEY = "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"
+
+
 @app.post("/ai/chat")
 def chat_ai(data: ChatRequest):
+    url = "https://openrouter.ai/api/v1/chat/completions"
+
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    body = {
+        "model": "openrouter/free",
+        "messages": [
+            {"role": "user", "content": data.question}
+        ]
+    }
+
+    response = requests.post(url, headers=headers, json=body)
+    result = response.json()
+
     return {
         "question": data.question,
-        "answer": "Esto es una respuesta de prueba de la IA"
+        "answer": result["choices"][0]["message"]["content"]
     }
 
 
