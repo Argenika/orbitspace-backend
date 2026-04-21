@@ -26,7 +26,7 @@ DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB
 
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"ssl": True}
+    connect_args={"ssl": {"ssl-mode": "REQUIRED"}}
 )
 try:
     with engine.connect() as connection:
