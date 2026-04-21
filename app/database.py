@@ -24,9 +24,8 @@ print("DB:", DB_NAME)
 # 4️⃣ conexión
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"ssl": {"ssl-mode": "REQUIRED"}}
+    connect_args={"ssl": True}
 )
-
 try:
     with engine.connect() as connection:
         print("✅ CONECTADO A LA BASE DE DATOS")
