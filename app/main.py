@@ -58,11 +58,14 @@ def root():
 @app.get("/satellites/active")
 def get_active_satellites():
     with engine.connect() as connection:
-        result = connection.execute(
-            text("SELECT * FROM satelites WHERE estado = 'activo'")
-        )
+        result = connection.execute(text("""
+            SELECT id, nombre, latitud, longitud
+            FROM satelites
+            WHERE estado = 'activo'
+        """))
 
         satellites = []
+
         for row in result:
             satellites.append({
                 "id": row.id,
@@ -71,7 +74,7 @@ def get_active_satellites():
                 "lng": float(row.longitud)
             })
 
-    return satellites
+        return satellites
 
 
 # Modelo de entrada (lo que recibe la IA)
