@@ -1,3 +1,6 @@
+import os
+from sqlalchemy import text
+from app.database import engine
 import requests
 from pydantic import BaseModel
 from fastapi import FastAPI
@@ -54,20 +57,21 @@ def root():
 
 @app.get("/satellites/active")
 def get_active_satellites():
-    return [
-        {
-            "id": 1,
-            "name": "ISS",
-            "lat": 40.7128,
-            "lng": -74.0060
-        },
-        {
-            "id": 2,
-            "name": "Hubble",
-            "lat": 28.5383,
-            "lng": -81.3792
-        }
-    ]
+    with engine.connect() as connection:
+        result = connection.execute(
+            text("SELECT * FROM satelites WHERE estado = 'activo'")
+        )
+
+        satellites = []
+        for row in result:
+            satellites.append({
+                "id": row.id,
+                "name": row.nombre,
+                "lat": float(row.latitud),
+                "lng": float(row.longitud)
+            })
+
+    return satellites
 
 
 # Modelo de entrada (lo que recibe la IA)
@@ -77,7 +81,7 @@ class ChatRequest(BaseModel):
     question: str
 
 
-OPENROUTER_API_KEY = "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"
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 
 @app.post("/ai/chat")

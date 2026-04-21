@@ -1,9 +1,33 @@
+import os
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from dotenv import load_dotenv
 
-# Cambia estos datos si tu MySQL es diferente
-DATABASE_URL = "mysql+pymysql://root:password@localhost/ospace2"
+from pathlib import Path
+
+env_path = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
+
+# 2️⃣ leer variables
+DB_HOST = os.getenv("DB_HOST")
+DB_PORT = os.getenv("DB_PORT")
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_NAME = os.getenv("DB_NAME")
+
+# 3️⃣ DEBUG (AHORA sí)
+print("HOST:", DB_HOST)
+print("PORT:", DB_PORT)
+print("USER:", DB_USER)
+print("PASSWORD:", DB_PASSWORD)
+print("DB:", DB_NAME)
+
+# 4️⃣ conexión
+DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 engine = create_engine(DATABASE_URL)
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+try:
+    with engine.connect() as connection:
+        print("✅ CONECTADO A LA BASE DE DATOS")
+except Exception as e:
+    print("❌ ERROR:", e)
