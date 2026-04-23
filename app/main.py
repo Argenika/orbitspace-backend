@@ -14,7 +14,6 @@ SECRET_KEY = "mi_clave_secreta"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -57,24 +56,19 @@ def root():
 
 @app.get("/satellites/active")
 def get_active_satellites():
-    with engine.connect() as connection:
-        result = connection.execute(text("""
-            SELECT id, nombre, latitud, longitud
-            FROM satelites
-            WHERE estado = 'activo'
-        """))
+    url = "https://api.wheretheiss.at/v1/satellites/25544"
 
-        satellites = []
+    response = requests.get(url)
+    data = response.json()
 
-        for row in result:
-            satellites.append({
-                "id": row.id,
-                "name": row.nombre,
-                "lat": float(row.latitud),
-                "lng": float(row.longitud)
-            })
-
-        return satellites
+    return [
+        {
+            "id": 25544,
+            "name": "ISS",
+            "lat": data["latitude"],
+            "lng": data["longitude"]
+        }
+    ]
 
 
 # Modelo de entrada (lo que recibe la IA)
@@ -119,13 +113,20 @@ class LoginRequest(BaseModel):
 
 @app.post("/auth/login")
 def login(data: LoginRequest):
-    token = create_access_token({"sub": data.email})
+    with engine.connect() as connection:
+        result = connection.execute(text("""
+            SELECT * FROM usuario WHERE email = :email
+        """), {"email": data.email})
 
-    return {
-        "email": data.email,
-        "message": "Login correcto",
-        "token": token
-    }
+        user = result.fetchone()
+
+        if not user:
+            raise HTTPException(status_code=401, detail="Usuario no existe")
+
+        return {
+            "email": user.email,
+            "message": "Usuario encontrado (aún sin validar password)"
+        }
 
 
 @app.get("/launches")
