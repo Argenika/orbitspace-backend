@@ -152,7 +152,7 @@ def login(data: LoginRequest):
 def register(data: RegisterRequest):
     hashed_password = pwd_context.hash(data.password)
 
-    with engine.connect() as connection:
+    with engine.begin() as connection:
         existing = connection.execute(text("""
             SELECT * FROM usuario WHERE email = :email
         """), {"email": data.email}).fetchone()
