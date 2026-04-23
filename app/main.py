@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
+from passlib.context import CryptContext
 
 SECRET_KEY = "mi_clave_secreta"
 ALGORITHM = "HS256"
@@ -33,6 +34,7 @@ async def preflight_handler(rest_of_path: str):
     return {"message": "OK"}
 
 security = HTTPBearer()
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def create_access_token(data: dict):
@@ -119,6 +121,12 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class RegisterRequest(BaseModel):
+    nombre: str
+    email: str
+    password: str
+
+
 @app.post("/auth/login")
 def login(data: LoginRequest):
     with engine.connect() as connection:
@@ -131,10 +139,49 @@ def login(data: LoginRequest):
         if not user:
             raise HTTPException(status_code=401, detail="Usuario no existe")
 
+        # 🔥 comprobar password
+        if not pwd_context.verify(data.password, user.password):
+            raise HTTPException(status_code=401, detail="Password incorrecto")
+
+        # 🔥 crear token
+        token = create_access_token({"sub": user.email})
+
         return {
             "email": user.email,
-            "message": "Usuario encontrado (falta validar password)"
+            "message": "Login correcto",
+            "token": token
         }
+
+
+@app.post("/auth/register")
+def register(data: RegisterRequest):
+    hashed_password = pwd_context.hash(data.password)
+
+    with engine.connect() as connection:
+        # comprobar si existe
+        existing = connection.execute(text("""
+            SELECT * FROM usuario WHERE email = :email
+        """), {"email": data.email}).fetchone()
+
+        if existing:
+            raise HTTPException(status_code=400, detail="Usuario ya existe")
+
+        # insertar usuario
+        connection.execute(text("""
+            INSERT INTO usuario (nombre, email, password)
+            VALUES (:nombre, :email, :password)
+        """), {
+            "nombre": data.nombre,
+            "email": data.email,
+            "password": hashed_password
+        })
+
+    token = create_access_token({"sub": data.email})
+
+    return {
+        "message": "Usuario creado",
+        "token": token
+    }
 
 # LANZAMIENTOS
 
