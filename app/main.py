@@ -160,7 +160,7 @@ def register(data: RegisterRequest):
         if existing:
             raise HTTPException(status_code=400, detail="Usuario ya existe")
 
-        connection.execute(text("""
+        result = connection.execute(text("""
             INSERT INTO usuario (nombre, email, password)
             VALUES (:nombre, :email, :password)
         """), {
@@ -169,12 +169,10 @@ def register(data: RegisterRequest):
             "password": hashed_password
         })
 
-        # 🔥 obtener user_id
-        user = connection.execute(text("""
-            SELECT * FROM usuario WHERE email = :email
-        """), {"email": data.email}).fetchone()
+        # 🔥 ESTA ES LA CLAVE
+        user_id = result.lastrowid
 
-    token = create_access_token({"sub": user.user_id})
+    token = create_access_token({"sub": user_id})
 
     return {
         "message": "Usuario creado",
