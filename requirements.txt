@@ -26,3 +26,4 @@ uvicorn==0.39.0
 pymysql
 sqlalchemy
 passlib[bcrypt]
+python-dotenv
