@@ -34,7 +34,10 @@ async def preflight_handler(rest_of_path: str):
     return {"message": "OK"}
 
 security = HTTPBearer()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    bcrypt__truncate_error=False  # 🔥 ESTO ARREGLA TODO
+)
 
 
 def create_access_token(data: dict):
