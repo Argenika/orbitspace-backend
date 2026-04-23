@@ -136,8 +136,13 @@ def login(data: LoginRequest):
         if not user:
             raise HTTPException(status_code=401, detail="Usuario no existe")
 
-        if not pwd_context.verify(data.password, user.password):
-            raise HTTPException(status_code=401, detail="Password incorrecto")
+        try:
+            if not pwd_context.verify(data.password, user.password):
+                raise HTTPException(
+                    status_code=401, detail="Password incorrecto")
+        except Exception:
+            raise HTTPException(
+                status_code=500, detail="Error en password hash")
 
         token = create_access_token({"sub": user.user_id})
 
@@ -163,14 +168,13 @@ def register(data: RegisterRequest):
         result = connection.execute(text("""
             INSERT INTO usuario (nombre, email, password)
             VALUES (:nombre, :email, :password)
-            RETURNING user_id
         """), {
             "nombre": data.nombre,
             "email": data.email,
             "password": hashed_password
         })
 
-        user_id = result.fetchone()[0]
+        user_id = result.lastrowid  # 🔥 MYSQL
 
     token = create_access_token({"sub": user_id})
 
