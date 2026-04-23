@@ -14,11 +14,12 @@ SECRET_KEY = "mi_clave_secreta"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
+app = FastAPI()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",  # desarrollo
-        # ⚠️ si tenéis frontend en render (opcional)
+        "http://localhost:5173",
         "https://orbitspace-frontend.onrender.com",
     ],
     allow_credentials=True,
@@ -30,6 +31,7 @@ app.add_middleware(
 @app.options("/{rest_of_path:path}")
 async def preflight_handler(rest_of_path: str):
     return {"message": "OK"}
+
 security = HTTPBearer()
 
 
@@ -37,14 +39,12 @@ def create_access_token(data: dict):
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
-    token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return token
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
 def verify_token(token: str):
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
+        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except Exception:
         raise HTTPException(status_code=401, detail="Token inválido")
 
@@ -53,17 +53,21 @@ def verify_token(token: str):
 def root():
     return {"message": "OrbitSpace funcionando"}
 
+# 🔥 SATÉLITES REALES (API)
+
 
 @app.get("/satellites/active")
 def get_active_satellites():
-    url = "https://api.n2yo.com/rest/v1/satellite/above/41.3851/2.1734/0/70/20&apiKey=TU_API_KEY_AQUI&apiKey=123456789abcdef"
+    API_KEY = "2EX4KD-X6WTG8-KXPEQE-5Q3Z"
+
+    url = f"https://api.n2yo.com/rest/v1/satellite/above/41.3851/2.1734/0/70/20?apiKey={API_KEY}"
 
     response = requests.get(url)
     data = response.json()
 
     satellites = []
 
-    for sat in data["above"]:
+    for sat in data.get("above", []):
         satellites.append({
             "id": sat["satid"],
             "name": sat["satname"],
@@ -73,8 +77,7 @@ def get_active_satellites():
 
     return satellites
 
-
-# Modelo de entrada (lo que recibe la IA)
+# IA
 
 
 class ChatRequest(BaseModel):
@@ -108,6 +111,8 @@ def chat_ai(data: ChatRequest):
         "answer": result["choices"][0]["message"]["content"]
     }
 
+# LOGIN
+
 
 class LoginRequest(BaseModel):
     email: str
@@ -128,8 +133,10 @@ def login(data: LoginRequest):
 
         return {
             "email": user.email,
-            "message": "Usuario encontrado (aún sin validar password)"
+            "message": "Usuario encontrado (falta validar password)"
         }
+
+# LANZAMIENTOS
 
 
 @app.get("/launches")
@@ -150,7 +157,7 @@ def get_launches():
     return launches
 
 
-# lista temporal (simula base de datos)
+# FAVORITOS
 favorites = []
 
 
