@@ -55,9 +55,8 @@ def verify_token(token: str):
 def root():
     return {"message": "OrbitSpace funcionando"}
 
-# 🔥 SATÉLITES REALES (API)
 
-
+# 🔥 SATÉLITES REALES
 @app.get("/satellites/active")
 def get_active_satellites():
     API_KEY = "2EX4KD-X6WTG8-KXPEQE-5Q3Z"
@@ -79,9 +78,8 @@ def get_active_satellites():
 
     return satellites
 
+
 # IA
-
-
 class ChatRequest(BaseModel):
     question: str
 
@@ -113,9 +111,8 @@ def chat_ai(data: ChatRequest):
         "answer": result["choices"][0]["message"]["content"]
     }
 
-# LOGIN
 
-
+# LOGIN / REGISTER
 class LoginRequest(BaseModel):
     email: str
     password: str
@@ -139,12 +136,10 @@ def login(data: LoginRequest):
         if not user:
             raise HTTPException(status_code=401, detail="Usuario no existe")
 
-        # 🔥 comprobar password
         if not pwd_context.verify(data.password, user.password):
             raise HTTPException(status_code=401, detail="Password incorrecto")
 
-        # 🔥 crear token
-        token = create_access_token({"sub": user.email})
+        token = create_access_token({"sub": user.user_id})
 
         return {
             "email": user.email,
@@ -158,7 +153,6 @@ def register(data: RegisterRequest):
     hashed_password = pwd_context.hash(data.password)
 
     with engine.connect() as connection:
-        # comprobar si existe
         existing = connection.execute(text("""
             SELECT * FROM usuario WHERE email = :email
         """), {"email": data.email}).fetchone()
@@ -166,7 +160,6 @@ def register(data: RegisterRequest):
         if existing:
             raise HTTPException(status_code=400, detail="Usuario ya existe")
 
-        # insertar usuario
         connection.execute(text("""
             INSERT INTO usuario (nombre, email, password)
             VALUES (:nombre, :email, :password)
@@ -176,55 +169,101 @@ def register(data: RegisterRequest):
             "password": hashed_password
         })
 
-    token = create_access_token({"sub": data.email})
+        # 🔥 obtener user_id
+        user = connection.execute(text("""
+            SELECT * FROM usuario WHERE email = :email
+        """), {"email": data.email}).fetchone()
+
+    token = create_access_token({"sub": user.user_id})
 
     return {
         "message": "Usuario creado",
         "token": token
     }
 
-# LANZAMIENTOS
 
-
+# 🚀 LANZAMIENTOS DESDE BBDD
 @app.get("/launches")
 def get_launches():
-    url = "https://ll.thespacedevs.com/2.2.0/launch/upcoming/"
-    response = requests.get(url)
-    data = response.json()
+    with engine.connect() as connection:
+        result = connection.execute(text("""
+            SELECT m.nombre_mision, m.fecha_lanzamiento, o.siglas as organizacion, v.nombre_vehiculo
+            FROM mision m
+            LEFT JOIN organizacion o ON m.organizacion_siglas = o.siglas
+            LEFT JOIN vehiculo v ON m.vehiculo1_id = v.vehiculo_id
+        """))
 
-    launches = []
+        launches = []
 
-    for launch in data["results"][:5]:
-        launches.append({
-            "name": launch["name"],
-            "date": launch["net"],
-            "provider": launch["launch_service_provider"]["name"]
-        })
+        for row in result:
+            launches.append({
+                "name": row.nombre_mision,
+                "date": str(row.fecha_lanzamiento),
+                "organization": row.organizacion,
+                "vehicle": row.nombre_vehiculo
+            })
 
-    return launches
-
-
-# FAVORITOS
-favorites = []
-
-
-class Favorite(BaseModel):
-    id: int
-    name: str
+        return launches
 
 
-@app.post("/favorites")
-def add_favorite(fav: Favorite):
-    favorites.append(fav)
-    return {"message": "Añadido a favoritos", "favorites": favorites}
-
-
+# ❤️ FAVORITOS (TOKEN)
 @app.get("/favorites")
 def get_favorites(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
     payload = verify_token(token)
-    return {
-        "message": "Token válido",
-        "user": payload,
-        "favorites": favorites
-    }
+
+    user_id = payload.get("sub")
+
+    with engine.connect() as connection:
+        result = connection.execute(text("""
+            SELECT v.*
+            FROM vehiculo v
+            INNER JOIN favorito f ON v.vehiculo_id = f.vehiculo_id
+            WHERE f.user_id = :user_id
+        """), {"user_id": user_id})
+
+        favorites = []
+
+        for row in result:
+            favorites.append(dict(row._mapping))
+
+        return favorites
+
+
+@app.post("/favorites/{vehiculo_id}")
+def toggle_favorite(vehiculo_id: int, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    token = credentials.credentials
+    payload = verify_token(token)
+
+    user_id = payload.get("sub")
+
+    with engine.connect() as connection:
+        existing = connection.execute(text("""
+            SELECT * FROM favorito
+            WHERE user_id = :user_id AND vehiculo_id = :vehiculo_id
+        """), {
+            "user_id": user_id,
+            "vehiculo_id": vehiculo_id
+        }).fetchone()
+
+        if existing:
+            connection.execute(text("""
+                DELETE FROM favorito
+                WHERE user_id = :user_id AND vehiculo_id = :vehiculo_id
+            """), {
+                "user_id": user_id,
+                "vehiculo_id": vehiculo_id
+            })
+
+            return {"message": "Eliminado de favoritos"}
+
+        else:
+            connection.execute(text("""
+                INSERT INTO favorito (user_id, vehiculo_id)
+                VALUES (:user_id, :vehiculo_id)
+            """), {
+                "user_id": user_id,
+                "vehiculo_id": vehiculo_id
+            })
+
+            return {"message": "Añadido a favoritos"}
