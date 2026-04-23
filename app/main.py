@@ -56,19 +56,22 @@ def root():
 
 @app.get("/satellites/active")
 def get_active_satellites():
-    url = "https://api.wheretheiss.at/v1/satellites/25544"
+    url = "https://api.n2yo.com/rest/v1/satellite/above/41.3851/2.1734/0/70/20&apiKey=TU_API_KEY_AQUI&apiKey=123456789abcdef"
 
     response = requests.get(url)
     data = response.json()
 
-    return [
-        {
-            "id": 25544,
-            "name": "ISS",
-            "lat": data["latitude"],
-            "lng": data["longitude"]
-        }
-    ]
+    satellites = []
+
+    for sat in data["above"]:
+        satellites.append({
+            "id": sat["satid"],
+            "name": sat["satname"],
+            "lat": sat["satlat"],
+            "lng": sat["satlng"]
+        })
+
+    return satellites
 
 
 # Modelo de entrada (lo que recibe la IA)
