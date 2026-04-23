@@ -163,14 +163,14 @@ def register(data: RegisterRequest):
         result = connection.execute(text("""
             INSERT INTO usuario (nombre, email, password)
             VALUES (:nombre, :email, :password)
+            RETURNING user_id
         """), {
             "nombre": data.nombre,
             "email": data.email,
             "password": hashed_password
         })
 
-        # 🔥 ESTA ES LA CLAVE
-        user_id = result.lastrowid
+        user_id = result.fetchone()[0]
 
     token = create_access_token({"sub": user_id})
 
