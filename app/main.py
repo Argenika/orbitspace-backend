@@ -166,7 +166,7 @@ def login(data: LoginRequest):
 
         alertas = alertas_result.fetchone().total
 
-        token = create_access_token({"sub": user.user_id})
+        token = create_access_token({"sub": str(user.user_id)})
 
         return {
             "token": token,
@@ -203,7 +203,7 @@ def register(data: RegisterRequest):
 
         user_id = result.lastrowid
 
-    token = create_access_token({"sub": user_id})
+        token = create_access_token({"sub": str(user_id)})
 
     return {
         "message": "Usuario creado",
