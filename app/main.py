@@ -48,8 +48,9 @@ def create_access_token(data: dict):
 def verify_token(token: str):
     try:
         return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    except Exception:
-        raise HTTPException(status_code=401, detail="Token inválido")
+    except Exception as e:
+        raise HTTPException(
+            status_code=401, detail=f"Token inválido: {str(e)}")
 
 
 @app.get("/")
