@@ -244,7 +244,7 @@ def get_favorites(credentials: HTTPAuthorizationCredentials = Depends(security))
         raise HTTPException(status_code=401, detail="No autorizado")
 
     payload = verify_token(credentials.credentials)
-    user_id = payload.get("sub")
+    user_id = int(payload.get("sub"))
 
     with engine.connect() as connection:
         result = connection.execute(text("""
@@ -263,7 +263,7 @@ def toggle_favorite(vehiculo_id: int, credentials: HTTPAuthorizationCredentials 
         raise HTTPException(status_code=401, detail="No autorizado")
 
     payload = verify_token(credentials.credentials)
-    user_id = payload.get("sub")
+    user_id = int(payload.get("sub"))
 
     with engine.begin() as connection:
         existing = connection.execute(text("""
