@@ -22,6 +22,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "https://orbitspace-frontend.onrender.com",
+        "https://orbitspace.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -33,7 +34,7 @@ app.add_middleware(
 async def preflight_handler(rest_of_path: str):
     return {"message": "OK"}
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 pwd_context = CryptContext(
     schemes=["bcrypt"],
     bcrypt__truncate_error=False  # 🔥 ESTO ARREGLA TODO
@@ -92,27 +93,31 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 @app.post("/ai/chat")
 def chat_ai(data: ChatRequest):
-    url = "https://openrouter.ai/api/v1/chat/completions"
+    try:
+        url = "https://openrouter.ai/api/v1/chat/completions"
 
-    headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "Content-Type": "application/json"
-    }
+        headers = {
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json"
+        }
 
-    body = {
-        "model": "openrouter/free",
-        "messages": [
-            {"role": "user", "content": data.question}
-        ]
-    }
+        body = {
+            "model": "openrouter/free",
+            "messages": [
+                {"role": "user", "content": data.question}
+            ]
+        }
 
-    response = requests.post(url, headers=headers, json=body)
-    result = response.json()
+        response = requests.post(url, headers=headers, json=body)
+        result = response.json()
 
-    return {
-        "question": data.question,
-        "answer": result["choices"][0]["message"]["content"]
-    }
+        return {
+            "question": data.question,
+            "answer": result.get("choices", [{}])[0].get("message", {}).get("content", "Error en IA")
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
 
 
 # LOGIN / REGISTER
@@ -214,6 +219,9 @@ def get_launches():
 # ❤️ FAVORITOS (TOKEN)
 @app.get("/favorites")
 def get_favorites(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="No autorizado")
+
     token = credentials.credentials
     payload = verify_token(token)
 
@@ -237,6 +245,8 @@ def get_favorites(credentials: HTTPAuthorizationCredentials = Depends(security))
 
 @app.post("/favorites/{vehiculo_id}")
 def toggle_favorite(vehiculo_id: int, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="No autorizado")
     token = credentials.credentials
     payload = verify_token(token)
 
