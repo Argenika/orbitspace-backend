@@ -3,7 +3,7 @@ from sqlalchemy import text
 from app.database import engine
 import requests
 from pydantic import BaseModel
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException
 from jose import jwt
 from datetime import datetime, timedelta
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -16,6 +16,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 app = FastAPI()
 
+# 🔥 CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -28,11 +29,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-@app.options("/{rest_of_path:path}")
-async def preflight_handler(rest_of_path: str):
-    return {"message": "OK"}
-
 security = HTTPBearer(auto_error=False)
 
 pwd_context = CryptContext(
@@ -41,6 +37,7 @@ pwd_context = CryptContext(
 )
 
 
+# 🔐 TOKEN
 def create_access_token(data: dict):
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -59,9 +56,8 @@ def verify_token(token: str):
 def root():
     return {"message": "OrbitSpace funcionando"}
 
-# 🔥 SATÉLITES
 
-
+# 🛰️ SATÉLITES
 @app.get("/satellites/active")
 def get_active_satellites():
     API_KEY = "2EX4KD-X6WTG8-KXPEQE-5Q3Z"
@@ -79,9 +75,8 @@ def get_active_satellites():
         for sat in data.get("above", [])
     ]
 
+
 # 🤖 IA
-
-
 class ChatRequest(BaseModel):
     question: str
 
@@ -105,17 +100,13 @@ def chat_ai(data: ChatRequest):
         }
 
         body = {
-            "model": "openai/gpt-3.5-turbo",  # 🔥 CAMBIO CLAVE
+            "model": "openai/gpt-3.5-turbo",
             "messages": [
                 {"role": "user", "content": data.question}
             ]
         }
 
         response = requests.post(url, headers=headers, json=body)
-
-        print("STATUS:", response.status_code)
-        print("RESPONSE:", response.text)
-
         result = response.json()
 
         if "error" in result:
@@ -127,27 +118,19 @@ def chat_ai(data: ChatRequest):
         answer = result.get("choices", [{}])[0].get(
             "message", {}).get("content")
 
-        if not answer:
-            return {
-                "question": data.question,
-                "answer": f"Respuesta vacía: {result}"
-            }
-
         return {
             "question": data.question,
-            "answer": answer
+            "answer": answer or "Sin respuesta"
         }
 
     except Exception as e:
-        print("ERROR IA:", str(e))
         return {
             "question": data.question,
             "answer": f"Error IA: {str(e)}"
         }
 
+
 # 🔐 LOGIN / REGISTER
-
-
 class LoginRequest(BaseModel):
     email: str
     password: str
@@ -162,6 +145,7 @@ class RegisterRequest(BaseModel):
 @app.post("/auth/login")
 def login(data: LoginRequest):
     with engine.connect() as connection:
+
         user = connection.execute(text("""
             SELECT * FROM usuario WHERE email = :email
         """), {"email": data.email}).fetchone()
@@ -172,6 +156,15 @@ def login(data: LoginRequest):
         if not pwd_context.verify(data.password, user.password):
             raise HTTPException(status_code=401, detail="Password incorrecto")
 
+        # 🔥 CONTAR ALERTAS (CORRECTO)
+        alertas_result = connection.execute(text("""
+            SELECT COUNT(*) as total
+            FROM alerta
+            WHERE user_id = :user_id AND leida = 0
+        """), {"user_id": user.user_id})
+
+        alertas = alertas_result.fetchone().total
+
         token = create_access_token({"sub": user.user_id})
 
         return {
@@ -179,9 +172,9 @@ def login(data: LoginRequest):
             "user": {
                 "nombre": user.nombre,
                 "email": user.email,
-                "fecha_registro": str(user.fecha_registro),
-                "horas_vuelo": user.horas_vuelo,
-                "alertas": 0
+                "fecha_registro": user.fecha_registro.isoformat() if user.fecha_registro else None,
+                "horas_vuelo": user.horas_vuelo or 0,
+                "alertas": alertas
             }
         }
 
@@ -216,9 +209,8 @@ def register(data: RegisterRequest):
         "token": token
     }
 
-# 🚀 LANZAMIENTOS
 
-
+# 🚀 LANZAMIENTOS (ARREGLADO)
 @app.get("/launches")
 def get_launches():
     with engine.connect() as connection:
@@ -237,20 +229,19 @@ def get_launches():
         return [
             {
                 "name": row.nombre_mision,
-                "date": str(row.fecha_lanzamiento),
+                "date": row.fecha_lanzamiento.isoformat() if row.fecha_lanzamiento else None,
                 "organization": row.organizacion,
                 "vehicle": row.nombre_vehiculo
             }
             for row in result
         ]
 
-# ❤️ FAVORITOS
 
-
+# ❤️ FAVORITOS (LIMPIO Y CORRECTO)
 @app.get("/favorites")
 def get_favorites(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    if not credentials:
-        raise HTTPException(status_code=401)
+    if not credentials or not credentials.credentials:
+        raise HTTPException(status_code=401, detail="No autorizado")
 
     payload = verify_token(credentials.credentials)
     user_id = payload.get("sub")
@@ -268,8 +259,8 @@ def get_favorites(credentials: HTTPAuthorizationCredentials = Depends(security))
 
 @app.post("/favorites/{vehiculo_id}")
 def toggle_favorite(vehiculo_id: int, credentials: HTTPAuthorizationCredentials = Depends(security)):
-    if not credentials:
-        raise HTTPException(status_code=401)
+    if not credentials or not credentials.credentials:
+        raise HTTPException(status_code=401, detail="No autorizado")
 
     payload = verify_token(credentials.credentials)
     user_id = payload.get("sub")
@@ -285,11 +276,11 @@ def toggle_favorite(vehiculo_id: int, credentials: HTTPAuthorizationCredentials 
                 DELETE FROM favorito
                 WHERE user_id = :user_id AND vehiculo_id = :vehiculo_id
             """), {"user_id": user_id, "vehiculo_id": vehiculo_id})
-            return {"message": "Eliminado"}
+            return {"message": "Eliminado de favoritos"}
 
         connection.execute(text("""
             INSERT INTO favorito (user_id, vehiculo_id)
             VALUES (:user_id, :vehiculo_id)
         """), {"user_id": user_id, "vehiculo_id": vehiculo_id})
 
-        return {"message": "Añadido"}
+        return {"message": "Añadido a favoritos"}
