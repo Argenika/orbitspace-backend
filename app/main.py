@@ -155,9 +155,11 @@ def login(data: LoginRequest):
         token = create_access_token({"sub": user.user_id})
 
         return {
-            "email": user.email,
-            "message": "Login correcto",
-            "token": token
+            "token": token,
+            "user": {
+                "nombre": user.nombre,
+                "email": user.email
+            }
         }
 
 
