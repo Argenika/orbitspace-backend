@@ -60,9 +60,14 @@ def root():
 
 # 🛰️ SATÉLITES
 @app.get("/satellites/active")
-def get_active_satellites(lat: float, lng: float):
+def get_active_satellites(lat: float = None, lng: float = None):
 
     API_KEY = "TU_API_KEY_AQUI"
+
+    # 🔥 fallback a Barcelona si no hay coords
+    if lat is None or lng is None:
+        lat = 41.3851
+        lng = 2.1734
 
     url = f"https://api.n2yo.com/rest/v1/satellite/above/{lat}/{lng}/0/500/50?apiKey={API_KEY}"
 
