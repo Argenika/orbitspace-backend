@@ -64,7 +64,7 @@ def root():
 @app.get("/satellites/active")
 def get_active_satellites(lat: float = None, lng: float = None):
 
-    API_KEY = "TU_API_KEY_AQUI"
+    API_KEY = os.getenv("N2YO_API_KEY")
 
     if lat is None or lng is None:
         lat = 41.3851
@@ -237,6 +237,7 @@ def get_launches():
             }
             for row in result
         ]
+
 # ❤️ FAVORITOS (NORAD)
 
 
@@ -249,12 +250,45 @@ def get_favorites(credentials: HTTPAuthorizationCredentials = Depends(security))
 
     with engine.connect() as connection:
         result = connection.execute(text("""
-            SELECT v.* FROM vehiculo v
+            SELECT v.vehiculo_id, v.nombre_vehiculo, v.norad_id
+            FROM vehiculo v
             INNER JOIN favorito f ON v.vehiculo_id = f.vehiculo_id
             WHERE f.user_id = :user_id
         """), {"user_id": user_id})
 
-        return [dict(row._mapping) for row in result]
+        favoritos = result.fetchall()
+
+    # 🔥 ahora llamamos a la API para cada uno
+    API_KEY = os.getenv("N2YO_API_KEY")
+    enriched = []
+
+    for fav in favoritos:
+        try:
+            url = f"https://api.n2yo.com/rest/v1/satellite/positions/{fav.norad_id}/41.3851/2.1734/0/1?apiKey={API_KEY}"
+            res = requests.get(url).json()
+
+            positions = res.get("positions", [])
+
+            if positions:
+                pos = positions[0]
+                lat = pos.get("satlatitude")
+                lng = pos.get("satlongitude")
+            else:
+                lat = None
+                lng = None
+
+        except:
+            lat = None
+            lng = None
+
+        enriched.append({
+            "id": fav.norad_id,
+            "name": fav.nombre_vehiculo,
+            "lat": lat,
+            "lng": lng
+        })
+
+    return enriched
 
 
 @app.post("/favorites/{norad_id}")
