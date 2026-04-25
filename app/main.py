@@ -60,9 +60,12 @@ def root():
 
 # 🛰️ SATÉLITES
 @app.get("/satellites/active")
-def get_active_satellites():
-    API_KEY = "2EX4KD-X6WTG8-KXPEQE-5Q3Z"
-    url = f"https://api.n2yo.com/rest/v1/satellite/above/41.3851/2.1734/0/70/20?apiKey={API_KEY}"
+def get_active_satellites(lat: float, lng: float):
+
+    API_KEY = "TU_API_KEY_AQUI"
+
+    url = f"https://api.n2yo.com/rest/v1/satellite/above/{lat}/{lng}/0/500/50?apiKey={API_KEY}"
+
     response = requests.get(url)
     data = response.json()
 
