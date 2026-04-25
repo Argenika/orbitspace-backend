@@ -229,10 +229,10 @@ def get_launches():
 
         return [
             {
-                "name": row.nombre_mision,
-                "date": row.fecha_lanzamiento.isoformat() if row.fecha_lanzamiento else None,
-                "organization": row.organizacion,
-                "vehicle": row.nombre_vehiculo
+                "nombre": row.nombre_mision,
+                "fecha": row.fecha_lanzamiento.isoformat() if row.fecha_lanzamiento else None,
+                "organizacion": row.organizacion,
+                "vehiculo": row.nombre_vehiculo
             }
             for row in result
         ]
