@@ -36,8 +36,9 @@ pwd_context = CryptContext(
     bcrypt__truncate_error=False
 )
 
-
 # 🔐 TOKEN
+
+
 def create_access_token(data: dict):
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -57,21 +58,31 @@ def verify_token(token: str):
 def root():
     return {"message": "OrbitSpace funcionando"}
 
+# 🛰️ SATÉLITES (DINÁMICO + FALLBACK)
 
-# 🛰️ SATÉLITES
+
 @app.get("/satellites/active")
 def get_active_satellites(lat: float = None, lng: float = None):
 
-    API_KEY = "TU_API_KEY_AQUI"
+    API_KEY = "2EX4KD-X6WTG8-KXPEQE-5Q3Z"  # 👈 tu API real
 
-    # 🔥 fallback a Barcelona si no hay coords
+    # 📍 fallback a Barcelona
     if lat is None or lng is None:
         lat = 41.3851
         lng = 2.1734
 
+    # 🔹 intento normal
     url = f"https://api.n2yo.com/rest/v1/satellite/above/{lat}/{lng}/0/500/50?apiKey={API_KEY}"
     response = requests.get(url)
     data = response.json()
+
+    satellites = data.get("above", [])
+
+    # 🔥 fallback si no hay satélites
+    if not satellites:
+        url = f"https://api.n2yo.com/rest/v1/satellite/above/{lat}/{lng}/0/1500/100?apiKey={API_KEY}"
+        response = requests.get(url)
+        satellites = response.json().get("above", [])
 
     return [
         {
@@ -80,11 +91,12 @@ def get_active_satellites(lat: float = None, lng: float = None):
             "lat": sat["satlat"],
             "lng": sat["satlng"]
         }
-        for sat in data.get("above", [])
+        for sat in satellites
     ]
 
-
 # 🤖 IA
+
+
 class ChatRequest(BaseModel):
     question: str
 
@@ -109,19 +121,11 @@ def chat_ai(data: ChatRequest):
 
         body = {
             "model": "openai/gpt-3.5-turbo",
-            "messages": [
-                {"role": "user", "content": data.question}
-            ]
+            "messages": [{"role": "user", "content": data.question}]
         }
 
         response = requests.post(url, headers=headers, json=body)
         result = response.json()
-
-        if "error" in result:
-            return {
-                "question": data.question,
-                "answer": f"Error IA REAL: {result['error']}"
-            }
 
         answer = result.get("choices", [{}])[0].get(
             "message", {}).get("content")
@@ -137,8 +141,9 @@ def chat_ai(data: ChatRequest):
             "answer": f"Error IA: {str(e)}"
         }
 
-
 # 🔐 LOGIN / REGISTER
+
+
 class LoginRequest(BaseModel):
     email: str
     password: str
@@ -164,14 +169,10 @@ def login(data: LoginRequest):
         if not pwd_context.verify(data.password, user.password):
             raise HTTPException(status_code=401, detail="Password incorrecto")
 
-        # 🔥 CONTAR ALERTAS (CORRECTO)
-        alertas_result = connection.execute(text("""
-            SELECT COUNT(*) as total
-            FROM alerta
+        alertas = connection.execute(text("""
+            SELECT COUNT(*) as total FROM alerta
             WHERE user_id = :user_id AND leida = 0
-        """), {"user_id": user.user_id})
-
-        alertas = alertas_result.fetchone().total
+        """), {"user_id": user.user_id}).fetchone().total
 
         token = create_access_token({"sub": str(user.user_id)})
 
@@ -209,55 +210,23 @@ def register(data: RegisterRequest):
         })
 
         user_id = result.lastrowid
-
         token = create_access_token({"sub": str(user_id)})
 
-    return {
-        "message": "Usuario creado",
-        "token": token
-    }
+    return {"message": "Usuario creado", "token": token}
+
+# ❤️ FAVORITOS (NORAD)
 
 
-# 🚀 LANZAMIENTOS (ARREGLADO)
-@app.get("/launches")
-def get_launches():
-    with engine.connect() as connection:
-        result = connection.execute(text("""
-            SELECT 
-                m.nombre_mision,
-                l.horario_lanza AS fecha_lanzamiento,
-                o.siglas as organizacion,
-                v.nombre_vehiculo
-            FROM mision m
-            LEFT JOIN lanzamiento l ON m.lanzamiento_id = l.lanza_id
-            LEFT JOIN organizacion o ON m.siglas_org = o.siglas
-            LEFT JOIN vehiculo v ON m.vehiculo1_id = v.vehiculo_id
-        """))
-
-        return [
-            {
-                "name": row.nombre_mision,
-                "date": row.fecha_lanzamiento.isoformat() if row.fecha_lanzamiento else None,
-                "organization": row.organizacion,
-                "vehicle": row.nombre_vehiculo
-            }
-            for row in result
-        ]
-
-
-# ❤️ FAVORITOS (LIMPIO Y CORRECTO)
 @app.get("/favorites")
 def get_favorites(credentials: HTTPAuthorizationCredentials = Depends(security)):
     if not credentials or not credentials.credentials:
         raise HTTPException(status_code=401, detail="No autorizado")
 
-    payload = verify_token(credentials.credentials)
-    user_id = int(payload.get("sub"))
+    user_id = int(verify_token(credentials.credentials).get("sub"))
 
     with engine.connect() as connection:
         result = connection.execute(text("""
-            SELECT v.*
-            FROM vehiculo v
+            SELECT v.* FROM vehiculo v
             INNER JOIN favorito f ON v.vehiculo_id = f.vehiculo_id
             WHERE f.user_id = :user_id
         """), {"user_id": user_id})
@@ -270,17 +239,14 @@ def toggle_favorite(norad_id: int, credentials: HTTPAuthorizationCredentials = D
     if not credentials or not credentials.credentials:
         raise HTTPException(status_code=401, detail="No autorizado")
 
-    payload = verify_token(credentials.credentials)
-    user_id = int(payload.get("sub"))
+    user_id = int(verify_token(credentials.credentials).get("sub"))
 
     with engine.begin() as connection:
 
-        # 1. Buscar vehículo por NORAD
         vehiculo = connection.execute(text("""
             SELECT vehiculo_id FROM vehiculo WHERE norad_id = :norad_id
         """), {"norad_id": norad_id}).fetchone()
 
-        # 2. Si no existe → crearlo
         if not vehiculo:
             result = connection.execute(text("""
                 INSERT INTO vehiculo (nombre_vehiculo, norad_id)
@@ -293,7 +259,6 @@ def toggle_favorite(norad_id: int, credentials: HTTPAuthorizationCredentials = D
         else:
             vehiculo_id = vehiculo.vehiculo_id
 
-        # 3. Toggle favorito
         existing = connection.execute(text("""
             SELECT * FROM favorito
             WHERE user_id = :user_id AND vehiculo_id = :vehiculo_id
