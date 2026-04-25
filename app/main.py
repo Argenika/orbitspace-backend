@@ -64,21 +64,18 @@ def root():
 @app.get("/satellites/active")
 def get_active_satellites(lat: float = None, lng: float = None):
 
-    API_KEY = "2EX4KD-X6WTG8-KXPEQE-5Q3Z"  # 👈 tu API real
+    API_KEY = "TU_API_KEY_AQUI"
 
-    # 📍 fallback a Barcelona
     if lat is None or lng is None:
         lat = 41.3851
         lng = 2.1734
 
-    # 🔹 intento normal
     url = f"https://api.n2yo.com/rest/v1/satellite/above/{lat}/{lng}/0/500/50?apiKey={API_KEY}"
     response = requests.get(url)
     data = response.json()
 
     satellites = data.get("above", [])
 
-    # 🔥 fallback si no hay satélites
     if not satellites:
         url = f"https://api.n2yo.com/rest/v1/satellite/above/{lat}/{lng}/0/1500/100?apiKey={API_KEY}"
         response = requests.get(url)
@@ -94,9 +91,8 @@ def get_active_satellites(lat: float = None, lng: float = None):
         for sat in satellites
     ]
 
+
 # 🤖 IA
-
-
 class ChatRequest(BaseModel):
     question: str
 
@@ -214,6 +210,33 @@ def register(data: RegisterRequest):
 
     return {"message": "Usuario creado", "token": token}
 
+# 🚀 LANZAMIENTOS
+
+
+@app.get("/launches")
+def get_launches():
+    with engine.connect() as connection:
+        result = connection.execute(text("""
+            SELECT 
+                m.nombre_mision,
+                l.horario_lanza AS fecha_lanzamiento,
+                o.siglas as organizacion,
+                v.nombre_vehiculo
+            FROM mision m
+            LEFT JOIN lanzamiento l ON m.lanzamiento_id = l.lanza_id
+            LEFT JOIN organizacion o ON m.siglas_org = o.siglas
+            LEFT JOIN vehiculo v ON m.vehiculo1_id = v.vehiculo_id
+        """))
+
+        return [
+            {
+                "name": row.nombre_mision,
+                "date": row.fecha_lanzamiento.isoformat() if row.fecha_lanzamiento else None,
+                "organization": row.organizacion,
+                "vehicle": row.nombre_vehiculo
+            }
+            for row in result
+        ]
 # ❤️ FAVORITOS (NORAD)
 
 
@@ -278,7 +301,7 @@ def toggle_favorite(norad_id: int, credentials: HTTPAuthorizationCredentials = D
             return {"message": "Eliminado de favoritos"}
 
         connection.execute(text("""
-            INSERT INTO favorito (user_id, vehiculo_id)
+            INSERT IGNORE INTO favorito (user_id, vehiculo_id)
             VALUES (:user_id, :vehiculo_id)
         """), {
             "user_id": user_id,
