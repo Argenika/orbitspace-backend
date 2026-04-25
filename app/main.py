@@ -258,8 +258,8 @@ def get_favorites(credentials: HTTPAuthorizationCredentials = Depends(security))
         return [dict(row._mapping) for row in result]
 
 
-@app.post("/favorites/{vehiculo_id}")
-def toggle_favorite(vehiculo_id: int, credentials: HTTPAuthorizationCredentials = Depends(security)):
+@app.post("/favorites/{norad_id}")
+def toggle_favorite(norad_id: int, credentials: HTTPAuthorizationCredentials = Depends(security)):
     if not credentials or not credentials.credentials:
         raise HTTPException(status_code=401, detail="No autorizado")
 
@@ -267,21 +267,50 @@ def toggle_favorite(vehiculo_id: int, credentials: HTTPAuthorizationCredentials 
     user_id = int(payload.get("sub"))
 
     with engine.begin() as connection:
+
+        # 1. Buscar vehículo por NORAD
+        vehiculo = connection.execute(text("""
+            SELECT vehiculo_id FROM vehiculo WHERE norad_id = :norad_id
+        """), {"norad_id": norad_id}).fetchone()
+
+        # 2. Si no existe → crearlo
+        if not vehiculo:
+            result = connection.execute(text("""
+                INSERT INTO vehiculo (nombre_vehiculo, norad_id)
+                VALUES (:nombre, :norad_id)
+            """), {
+                "nombre": f"SAT-{norad_id}",
+                "norad_id": norad_id
+            })
+            vehiculo_id = result.lastrowid
+        else:
+            vehiculo_id = vehiculo.vehiculo_id
+
+        # 3. Toggle favorito
         existing = connection.execute(text("""
             SELECT * FROM favorito
             WHERE user_id = :user_id AND vehiculo_id = :vehiculo_id
-        """), {"user_id": user_id, "vehiculo_id": vehiculo_id}).fetchone()
+        """), {
+            "user_id": user_id,
+            "vehiculo_id": vehiculo_id
+        }).fetchone()
 
         if existing:
             connection.execute(text("""
                 DELETE FROM favorito
                 WHERE user_id = :user_id AND vehiculo_id = :vehiculo_id
-            """), {"user_id": user_id, "vehiculo_id": vehiculo_id})
+            """), {
+                "user_id": user_id,
+                "vehiculo_id": vehiculo_id
+            })
             return {"message": "Eliminado de favoritos"}
 
         connection.execute(text("""
             INSERT INTO favorito (user_id, vehiculo_id)
             VALUES (:user_id, :vehiculo_id)
-        """), {"user_id": user_id, "vehiculo_id": vehiculo_id})
+        """), {
+            "user_id": user_id,
+            "vehiculo_id": vehiculo_id
+        })
 
         return {"message": "Añadido a favoritos"}
