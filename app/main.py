@@ -70,7 +70,6 @@ def get_active_satellites(lat: float = None, lng: float = None):
         lng = 2.1734
 
     url = f"https://api.n2yo.com/rest/v1/satellite/above/{lat}/{lng}/0/500/50?apiKey={API_KEY}"
-
     response = requests.get(url)
     data = response.json()
 
