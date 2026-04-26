@@ -262,7 +262,7 @@ def get_launches():
                 "description": row.descripcion,
                 "type": row.tipo_mision,
                 "status": row.estado,
-                "date": row.fecha_lanzamiento.isoformat() if row.fecha_lanzamiento else None,
+                "date": str(row.fecha_lanzamiento) if row.fecha_lanzamiento else None,
                 "organization": row.organizacion,
                 "vehicle": row.nombre_vehiculo
             }
