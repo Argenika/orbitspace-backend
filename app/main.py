@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from passlib.context import CryptContext
+import unicodedata
 
 SECRET_KEY = os.getenv("SECRET_KEY", "mi_clave_secreta")
 ALGORITHM = "HS256"
@@ -103,6 +104,20 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 @app.post("/ai/chat")
 def chat_ai(data: ChatRequest):
     try:
+
+        pregunta = unicodedata.normalize('NFKD', data.question.lower()).encode(
+            'ascii', 'ignore').decode('utf-8')
+
+        palabras_espacio = ["planeta", "planetas", "estrella", "estrellas",
+                            "galaxia", "universo", "nasa", "satelite", "satélite",
+                            "marte", "tierra", "jupiter", "espacio", "astronomia",
+                            "cohete", "luna"]
+
+        if not any(p in pregunta for p in palabras_espacio):
+            return {
+                "question": data.question,
+                "answer": "Solo puedo responder preguntas relacionadas con el espacio 🚀"
+            }
         if not OPENROUTER_API_KEY:
             raise HTTPException(status_code=500, detail="Falta API KEY")
 
@@ -117,7 +132,16 @@ def chat_ai(data: ChatRequest):
 
         body = {
             "model": "openai/gpt-3.5-turbo",
-            "messages": [{"role": "user", "content": data.question}]
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "Eres un asistente experto en el espacio (astronomía, satélites, planetas, NASA, etc). Solo puedes responder preguntas relacionadas con el espacio. Si el usuario pregunta algo fuera de este tema, responde: 'Solo puedo responder preguntas relacionadas con el espacio.' No menciones fechas de entrenamiento ni años."
+                },
+                {
+                    "role": "user",
+                    "content": data.question
+                }
+            ]
         }
 
         response = requests.post(url, headers=headers, json=body)
