@@ -241,11 +241,14 @@ def register(data: RegisterRequest):
 def get_launches():
     with engine.connect() as connection:
         result = connection.execute(text("""
-            SELECT 
-                m.nombre_mision,
-                l.horario_lanza AS fecha_lanzamiento,
-                o.siglas as organizacion,
-                v.nombre_vehiculo
+          SELECT
+    m.nombre_mision,
+    m.descripcion,
+    m.tipo_mision,
+    m.estado,
+    l.horario_lanza AS fecha_lanzamiento,
+    o.siglas as organizacion,
+    v.nombre_vehiculo
             FROM mision m
             LEFT JOIN lanzamiento l ON m.lanzamiento_id = l.lanza_id
             LEFT JOIN organizacion o ON m.siglas_org = o.siglas
@@ -253,8 +256,12 @@ def get_launches():
         """))
 
         return [
+
             {
                 "name": row.nombre_mision,
+                "description": row.descripcion,
+                "type": row.tipo_mision,
+                "status": row.estado,
                 "date": row.fecha_lanzamiento.isoformat() if row.fecha_lanzamiento else None,
                 "organization": row.organizacion,
                 "vehicle": row.nombre_vehiculo
