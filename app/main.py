@@ -109,11 +109,19 @@ def chat_ai(data: ChatRequest):
             'ascii', 'ignore').decode('utf-8')
 
         palabras_espacio = ["planeta", "planetas", "estrella", "estrellas",
-                            "galaxia", "universo", "nasa", "satelite", "satélite",
-                            "marte", "tierra", "jupiter", "espacio", "astronomia",
-                            "cohete", "luna"]
+                            "galaxia", "galaxias", "universo", "cosmos",
+                            "nasa", "esa", "satelite", "satellites",
+                            "marte", "tierra", "jupiter", "saturno", "venus", "mercurio", "urano", "neptuno",
+                            "espacio", "astronomia",
+                            "cohete", "cohetes", "luna", "sol",
+                            "via lactea", "milky way",
+                            "nave", "naves", "nave espacial", "naves espaciales",
+                            "orbita",
+                            "gravedad", "agujero negro",
+                            "velocidad de la luz", "luz",
+                            "astro", "astronauta", "astronautas"]
 
-        if not any(p in pregunta for p in palabras_espacio):
+        if not any(p in pregunta for p in palabras_espacio) and len(pregunta.split()) < 8:
             return {
                 "question": data.question,
                 "answer": "Solo puedo responder preguntas relacionadas con el espacio 🚀"
