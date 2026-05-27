@@ -31,7 +31,7 @@ Arquitectura desacoplada cliente-servidor en tres capas:
 | Base de datos | MySQL |
 | Inteligencia Artificial | OpenRouter API |
 | Autenticación | JWT (JSON Web Tokens) |
-| Despliegue | Vercel (frontend) |
+| Despliegue | Vercel (frontend) · Render (backend) |
 | Gestión del proyecto | Git, GitHub, Scrum Board |
 
 ---
